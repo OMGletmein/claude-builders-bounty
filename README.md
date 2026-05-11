@@ -33,6 +33,12 @@ chmod +x install.sh
 
 The installer copies `hooks/block_destructive_bash.py` to `~/.claude/hooks/` and adds a Bash `PreToolUse` hook to `~/.claude/settings.json`. Blocked attempts are logged to `~/.claude/hooks/blocked.log` with a timestamp, attempted command, and project path.
 
+To verify against a real Claude Code run in a disposable project:
+
+```bash
+tests/smoke_claude_code_hook.sh
+```
+
 ---
 
 ## Active Bounties

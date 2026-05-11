@@ -29,14 +29,24 @@ chmod +x "${HOOK_PATH}"
 PY_SETTINGS_FILE="${SETTINGS_FILE}"
 PY_HOOK_PATH="${HOOK_PATH}"
 HOOK_COMMAND_PATH="${HOOK_PATH}"
+PYTHON_COMMAND="${PYTHON_BIN}"
+HOOK_SHELL=""
 
 if [[ "${PYTHON_BIN}" == *.exe ]] && command -v wslpath >/dev/null 2>&1; then
   PY_SETTINGS_FILE="$(wslpath -w "${SETTINGS_FILE}")"
   PY_HOOK_PATH="$(wslpath -w "${HOOK_PATH}")"
   HOOK_COMMAND_PATH="${PY_HOOK_PATH}"
+  PYTHON_COMMAND="$(wslpath -w "${PYTHON_BIN}")"
+  HOOK_SHELL="powershell"
+elif [[ "${PYTHON_BIN}" == *.exe ]] && command -v cygpath >/dev/null 2>&1; then
+  PY_SETTINGS_FILE="$(cygpath -w "${SETTINGS_FILE}")"
+  PY_HOOK_PATH="$(cygpath -w "${HOOK_PATH}")"
+  HOOK_COMMAND_PATH="${PY_HOOK_PATH}"
+  PYTHON_COMMAND="$(cygpath -w "${PYTHON_BIN}")"
+  HOOK_SHELL="powershell"
 fi
 
-"${PYTHON_BIN}" - "${PY_SETTINGS_FILE}" "${PY_HOOK_PATH}" "${PYTHON_BIN}" "${HOOK_COMMAND_PATH}" <<'PY'
+"${PYTHON_BIN}" - "${PY_SETTINGS_FILE}" "${PY_HOOK_PATH}" "${PYTHON_COMMAND}" "${HOOK_COMMAND_PATH}" "${HOOK_SHELL}" <<'PY'
 import json
 import shlex
 import sys
@@ -46,7 +56,15 @@ settings_path = Path(sys.argv[1])
 hook_path = Path(sys.argv[2])
 python_bin = sys.argv[3]
 hook_command_path = sys.argv[4]
-command = f"{shlex.quote(python_bin)} {shlex.quote(hook_command_path)}"
+hook_shell = sys.argv[5]
+
+if hook_shell == "powershell":
+    def ps_quote(value: str) -> str:
+        return "'" + value.replace("'", "''") + "'"
+
+    command = f"& {ps_quote(python_bin)} {ps_quote(hook_command_path)}"
+else:
+    command = f"{shlex.quote(python_bin)} {shlex.quote(hook_command_path)}"
 
 if settings_path.exists():
     try:
@@ -77,13 +95,14 @@ already_installed = any(
 )
 
 if not already_installed:
-    handlers.append(
-        {
-            "type": "command",
-            "command": command,
-            "statusMessage": "Checking Bash command safety",
-        }
-    )
+    handler = {
+        "type": "command",
+        "command": command,
+        "statusMessage": "Checking Bash command safety",
+    }
+    if hook_shell:
+        handler["shell"] = hook_shell
+    handlers.append(handler)
 
 settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
 print(f"Installed destructive Bash command hook at {hook_path}")
